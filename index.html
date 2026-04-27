@@ -189,8 +189,13 @@
       <h1>Tracker de Projetos</h1>
       <p>Insper Jr. — Área Comercial</p>
     </div>
-    <button class="btn btn-primary" onclick="openModal()">+ novo projeto</button>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn" onclick="importData()" title="Importar projetos de um arquivo JSON">⬆ importar</button>
+      <button class="btn" onclick="exportData()" title="Exportar todos os projetos como JSON">⬇ exportar</button>
+      <button class="btn btn-primary" onclick="openModal()">+ novo projeto</button>
+    </div>
   </div>
+  <input type="file" id="import-input" accept=".json" style="display:none" onchange="handleImport(event)">
 
   <div class="legend">
     <div class="leg-item"><div class="leg-box" style="background:#3B6D11;border-radius:50%"></div> Kick-off</div>
@@ -483,6 +488,48 @@ function deleteProject(id,e) {
   projects=projects.filter(x=>x.id!==id);
   if(activeId===id) activeId=null;
   save(); render();
+}
+
+function exportData() {
+  if(!projects.length){ alert('Nenhum projeto para exportar.'); return; }
+  const json = JSON.stringify(projects, null, 2);
+  const blob = new Blob([json], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const date = new Date().toISOString().slice(0,10);
+  a.href = url; a.download = `projetos-${date}.json`;
+  a.click(); URL.revokeObjectURL(url);
+}
+
+function importData() {
+  document.getElementById('import-input').value = '';
+  document.getElementById('import-input').click();
+}
+
+function handleImport(e) {
+  const file = e.target.files[0]; if(!file) return;
+  const reader = new FileReader();
+  reader.onload = function(ev) {
+    try {
+      const imported = JSON.parse(ev.target.result);
+      if(!Array.isArray(imported)) throw new Error('Formato invalido');
+      const valid = imported.filter(p => p.id && p.name && p.kickoff && p.dias);
+      if(!valid.length){ alert('Nenhum projeto valido encontrado no arquivo.'); return; }
+      const existingIds = new Set(projects.map(p=>p.id));
+      const novos = valid.filter(p=>!existingIds.has(p.id));
+      const duplicados = valid.length - novos.length;
+      if(!novos.length){ alert('Todos os projetos do arquivo ja existem aqui.'); return; }
+      let msg = `Importar ${novos.length} projeto(s)?`;
+      if(duplicados > 0) msg += `\n(${duplicados} ja existiam e foram ignorados)`;
+      if(!confirm(msg)) return;
+      projects = [...projects, ...novos];
+      activeId = novos[novos.length-1].id;
+      save(); render();
+    } catch(err) {
+      alert('Erro ao ler o arquivo. Certifique-se de que e um JSON exportado por este tracker.');
+    }
+  };
+  reader.readAsText(file);
 }
 
 load();
