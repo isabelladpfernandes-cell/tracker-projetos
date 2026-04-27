@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tracker de Projetos — Insper Jr.</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #ffffff;
+    --bg-secondary: #f5f5f3;
+    --bg-tertiary: #eeede9;
+    --text: #1a1a18;
+    --text-secondary: #6b6b67;
+    --border: rgba(0,0,0,0.12);
+    --border-hover: rgba(0,0,0,0.25);
+    --radius-md: 8px;
+    --radius-lg: 12px;
+    --shadow: 0 1px 4px rgba(0,0,0,0.08);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1c1c1a;
+      --bg-secondary: #262624;
+      --bg-tertiary: #2e2e2c;
+      --text: #f0efe9;
+      --text-secondary: #9a9a94;
+      --border: rgba(255,255,255,0.12);
+      --border-hover: rgba(255,255,255,0.28);
+      --shadow: 0 1px 4px rgba(0,0,0,0.3);
+    }
+  }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    background: var(--bg-secondary);
+    color: var(--text);
+    min-height: 100vh;
+    padding: 2rem 1rem;
+  }
+
+  .container { max-width: 960px; margin: 0 auto; }
+
+  .header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 1.75rem; flex-wrap: wrap; gap: 12px;
+  }
+
+  .brand { display: flex; flex-direction: column; gap: 2px; }
+  .brand h1 { font-size: 20px; font-weight: 600; color: var(--text); }
+  .brand p { font-size: 13px; color: var(--text-secondary); }
+
+  .btn {
+    padding: 8px 16px; border-radius: var(--radius-md);
+    border: 1px solid var(--border); background: var(--bg);
+    color: var(--text); font-size: 13px; font-family: inherit;
+    cursor: pointer; transition: all .15s; font-weight: 500;
+  }
+  .btn:hover { border-color: var(--border-hover); background: var(--bg-secondary); }
+  .btn-primary { background: var(--text); color: var(--bg); border-color: var(--text); }
+  .btn-primary:hover { opacity: .85; background: var(--text); }
+  .btn-danger { color: #A32D2D; border-color: #F7C1C1; }
+  .btn-danger:hover { background: #FCEBEB; }
+  .btn-sm { padding: 4px 10px; font-size: 12px; }
+
+  .legend {
+    display: flex; flex-wrap: wrap; gap: 12px;
+    background: var(--bg); border: 1px solid var(--border);
+    border-radius: var(--radius-lg); padding: 12px 16px;
+    margin-bottom: 1.5rem;
+  }
+  .leg-item { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-secondary); }
+  .leg-box { width: 14px; height: 14px; border-radius: 3px; flex-shrink: 0; }
+
+  .project-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 1.5rem; }
+
+  .project-card {
+    background: var(--bg); border: 1px solid var(--border);
+    border-radius: var(--radius-lg); padding: 14px 16px;
+    cursor: pointer; transition: all .15s;
+  }
+  .project-card:hover { border-color: var(--border-hover); box-shadow: var(--shadow); }
+  .project-card.active { border-color: rgba(0,0,0,0.4); }
+  @media (prefers-color-scheme: dark) { .project-card.active { border-color: rgba(255,255,255,0.4); } }
+
+  .proj-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+  .proj-name { font-size: 15px; font-weight: 500; }
+  .proj-meta { font-size: 12px; color: var(--text-secondary); margin-top: 3px; }
+  .proj-right { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+  .badge { font-size: 11px; padding: 3px 9px; border-radius: 20px; font-weight: 500; white-space: nowrap; }
+  .badge-green { background: #EAF3DE; color: #3B6D11; }
+  .badge-blue { background: #E6F1FB; color: #185FA5; }
+  .badge-gray { background: var(--bg-secondary); color: var(--text-secondary); border: 1px solid var(--border); }
+
+  .empty-state {
+    text-align: center; padding: 3rem 1rem;
+    background: var(--bg); border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    color: var(--text-secondary); font-size: 14px;
+  }
+  .empty-state .icon { font-size: 32px; margin-bottom: 12px; }
+
+  .divider { border: none; border-top: 1px solid var(--border); margin: 1.75rem 0; }
+
+  .section-label {
+    font-size: 11px; font-weight: 600; letter-spacing: .07em;
+    text-transform: uppercase; color: var(--text-secondary); margin-bottom: 14px;
+  }
+
+  .calendar-wrap { overflow-x: auto; border-radius: var(--radius-lg); border: 1px solid var(--border); background: var(--bg); }
+  table { border-collapse: collapse; min-width: 100%; }
+
+  .cal-th {
+    font-size: 10px; color: var(--text-secondary); font-weight: 400;
+    padding: 5px 4px; text-align: center; white-space: nowrap;
+    border-bottom: 1px solid var(--border);
+  }
+  .cal-th.today-col { color: var(--text); font-weight: 600; }
+  .cal-month-th {
+    font-size: 11px; color: var(--text-secondary); padding: 6px 4px 4px;
+    text-align: left; padding-left: 6px; border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+  }
+  .cal-label {
+    font-size: 12px; font-weight: 500; color: var(--text);
+    padding: 7px 12px 7px 14px; white-space: nowrap; min-width: 145px;
+    border-right: 1px solid var(--border);
+  }
+  .cal-cell {
+    width: 28px; min-width: 28px; height: 28px;
+    border: 0.5px solid transparent; text-align: center;
+    vertical-align: middle; position: relative;
+  }
+  .cal-cell.weekend { background: var(--bg-tertiary); }
+  .cal-cell.fase-amb { background: #B5D4F4; }
+  .cal-cell.fase-proj { background: #C0DD97; }
+  .cal-cell.fase-espera { background: #FAC775; }
+  .cal-cell.fase-pag { background: #F4C0D1; }
+  .cal-cell.fase-kick { background: #3B6D11; border-radius: 50%; margin: 2px; width: 24px; height: 24px; }
+  .cal-cell.fase-fim { background: #A32D2D; border-radius: 50%; margin: 2px; width: 24px; height: 24px; }
+  .cal-cell.today-line { box-shadow: inset 2px 0 0 #E24B4A; }
+  .day-num { font-size: 10px; color: var(--text-secondary); }
+  .cal-cell.fase-kick .day-num, .cal-cell.fase-fim .day-num { color: #fff; }
+
+  .cal-summary {
+    font-size: 13px; color: var(--text-secondary);
+    margin-top: 12px; padding: 10px 14px;
+    background: var(--bg); border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+  }
+
+  /* Modal */
+  .modal-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,.4);
+    display: flex; align-items: center; justify-content: center; z-index: 100;
+  }
+  .modal {
+    background: var(--bg); border-radius: var(--radius-lg);
+    border: 1px solid var(--border); padding: 1.5rem;
+    width: min(500px, 94vw); max-height: 88vh; overflow-y: auto;
+    box-shadow: 0 8px 32px rgba(0,0,0,.15);
+  }
+  .modal-title { font-size: 17px; font-weight: 600; margin-bottom: 1.25rem; }
+  .form-row { margin-bottom: 14px; }
+  .form-label { font-size: 12px; color: var(--text-secondary); margin-bottom: 5px; display: block; font-weight: 500; }
+  .form-input {
+    width: 100%; padding: 8px 11px;
+    border: 1px solid var(--border); border-radius: var(--radius-md);
+    background: var(--bg); color: var(--text);
+    font-size: 13px; font-family: inherit;
+    transition: border-color .15s;
+  }
+  .form-input:focus { outline: none; border-color: var(--border-hover); }
+  .form-row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px; }
+  .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 1.5rem; }
+
+  .espera-item { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
+  .espera-item input { flex: 1; }
+  .add-link { font-size: 12px; color: #185FA5; cursor: pointer; background: none; border: none; font-family: inherit; text-decoration: underline; padding: 0; margin-top: 4px; }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <div class="brand">
+      <h1>Tracker de Projetos</h1>
+      <p>Insper Jr. — Área Comercial</p>
+    </div>
+    <button class="btn btn-primary" onclick="openModal()">+ novo projeto</button>
+  </div>
+
+  <div class="legend">
+    <div class="leg-item"><div class="leg-box" style="background:#3B6D11;border-radius:50%"></div> Kick-off</div>
+    <div class="leg-item"><div class="leg-box" style="background:#B5D4F4;border:1px solid #85B7EB"></div> Ambientação (5 du)</div>
+    <div class="leg-item"><div class="leg-box" style="background:#C0DD97;border:1px solid #97C459"></div> Projeto</div>
+    <div class="leg-item"><div class="leg-box" style="background:#FAC775;border:1px solid #EF9F27"></div> Aguardando cliente</div>
+    <div class="leg-item"><div class="leg-box" style="background:#F4C0D1;border:1px solid #ED93B1"></div> Pagamento</div>
+    <div class="leg-item"><div class="leg-box" style="background:#A32D2D;border-radius:50%"></div> Entrega prevista</div>
+  </div>
+
+  <div id="project-list" class="project-list"></div>
+  <div id="empty-state" class="empty-state" style="display:none">
+    <div class="icon">📋</div>
+    <div>Nenhum projeto ainda.<br>Clique em <strong>+ novo projeto</strong> para começar.</div>
+  </div>
+
+  <div id="calendar-section" style="display:none">
+    <hr class="divider">
+    <div class="section-label">Cronograma — <span id="cal-proj-name"></span></div>
+    <div class="calendar-wrap">
+      <table id="cal-table"></table>
+    </div>
+    <div class="cal-summary" id="cal-summary"></div>
+  </div>
+</div>
+
+<!-- Modal -->
+<div id="modal-overlay" class="modal-overlay" style="display:none" onclick="closeModalOutside(event)">
+  <div class="modal">
+    <div class="modal-title" id="modal-title">Novo Projeto</div>
+    <div class="form-row">
+      <label class="form-label">Nome do projeto / cliente</label>
+      <input class="form-input" id="f-name" placeholder="Ex: Cliente ABC — Pesquisa de Mercado">
+    </div>
+    <div class="form-row-2">
+      <div>
+        <label class="form-label">Data do kick-off</label>
+        <input class="form-input" type="date" id="f-kickoff">
+      </div>
+      <div>
+        <label class="form-label">Dias úteis de projeto</label>
+        <input class="form-input" type="number" id="f-dias" min="1" max="180" placeholder="Ex: 30">
+      </div>
+    </div>
+    <div class="form-row">
+      <label class="form-label">Datas de pagamento (até 3)</label>
+      <input class="form-input" type="date" id="f-pag1" style="margin-bottom:6px">
+      <input class="form-input" type="date" id="f-pag2" style="margin-bottom:6px">
+      <input class="form-input" type="date" id="f-pag3">
+    </div>
+    <div class="form-row">
+      <label class="form-label">Períodos aguardando cliente (dias sem trabalho)</label>
+      <div id="espera-list"></div>
+      <button class="add-link" onclick="addEsperaRow()">+ adicionar período</button>
+    </div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal()">cancelar</button>
+      <button class="btn btn-primary" onclick="saveProject()">salvar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const STORAGE_KEY = 'insper_jr_tracker_v1';
+let projects = [];
+let editingId = null;
+let activeId = null;
+
+function load() {
+  try { projects = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); } catch(e) { projects = []; }
+  render();
+}
+function save() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(projects));
+}
+
+function parseDate(s) { const [y,m,d]=s.split('-'); return new Date(+y,+m-1,+d); }
+function isoDate(d) { return d.toISOString().slice(0,10); }
+function formatDate(d) { return d.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric'}); }
+function addDays(d,n) { const r=new Date(d); r.setDate(r.getDate()+n); return r; }
+function isWeekend(d) { return d.getDay()===0||d.getDay()===6; }
+function addBusinessDays(start, n) {
+  let d=new Date(start), count=0;
+  while(count<n){ d=addDays(d,1); if(!isWeekend(d)) count++; }
+  return d;
+}
+
+function buildProjectDates(p) {
+  const kick = parseDate(p.kickoff);
+  const ambEnd = addBusinessDays(kick, 5);
+  let projEnd = addBusinessDays(ambEnd, p.dias);
+  const esperas = (p.esperas||[]).filter(e=>e.from&&e.to);
+  for(const e of esperas) {
+    let d=parseDate(e.from), et=parseDate(e.to), days=0;
+    while(d<=et){ if(!isWeekend(d)) days++; d=addDays(d,1); }
+    projEnd = addBusinessDays(projEnd, days);
+  }
+  return { kick, ambEnd, projEnd, esperas, pags:(p.pags||[]).filter(Boolean) };
+}
+
+function getStatus(p) {
+  const {kick, projEnd} = buildProjectDates(p);
+  const today = new Date(); today.setHours(0,0,0,0);
+  if(today < kick) return {label:'aguardando início', cls:'badge-gray'};
+  if(today > projEnd) return {label:'finalizado', cls:'badge-green'};
+  return {label:'em andamento', cls:'badge-blue'};
+}
+
+function render() {
+  const list = document.getElementById('project-list');
+  const empty = document.getElementById('empty-state');
+  const calSec = document.getElementById('calendar-section');
+  list.innerHTML = '';
+  if(!projects.length) { empty.style.display='block'; calSec.style.display='none'; return; }
+  empty.style.display='none';
+  projects.forEach(p => {
+    const {projEnd} = buildProjectDates(p);
+    const st = getStatus(p);
+    const div = document.createElement('div');
+    div.className='project-card'+(activeId===p.id?' active':'');
+    div.innerHTML=`
+      <div class="proj-header">
+        <div>
+          <div class="proj-name">${escHtml(p.name)}</div>
+          <div class="proj-meta">Kick-off: ${formatDate(parseDate(p.kickoff))} &nbsp;·&nbsp; Entrega prevista: ${formatDate(projEnd)}</div>
+        </div>
+        <div class="proj-right">
+          <span class="badge ${st.cls}">${st.label}</span>
+          <button class="btn btn-sm" onclick="editProject('${p.id}',event)">editar</button>
+          <button class="btn btn-sm btn-danger" onclick="deleteProject('${p.id}',event)">excluir</button>
+        </div>
+      </div>`;
+    div.addEventListener('click', () => showCalendar(p.id));
+    list.appendChild(div);
+  });
+  if(activeId && projects.find(x=>x.id===activeId)) showCalendar(activeId);
+  else calSec.style.display='none';
+}
+
+function escHtml(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+function showCalendar(id) {
+  activeId = id;
+  document.querySelectorAll('.project-card').forEach(el => el.classList.toggle('active', el.querySelector('.btn')?.getAttribute('onclick')?.includes(id)));
+  const p = projects.find(x=>x.id===id); if(!p) return;
+  const {kick, ambEnd, projEnd, esperas, pags} = buildProjectDates(p);
+  document.getElementById('cal-proj-name').textContent = p.name;
+  document.getElementById('calendar-section').style.display = 'block';
+
+  const today = new Date(); today.setHours(0,0,0,0);
+  const rangeStart = new Date(kick.getFullYear(), kick.getMonth(), 1);
+  const rangeEnd = new Date(projEnd.getFullYear(), projEnd.getMonth()+1, 0);
+
+  const espSet = {};
+  esperas.forEach(e => {
+    let d=parseDate(e.from), et=parseDate(e.to);
+    while(d<=et){ if(!isWeekend(d)) espSet[isoDate(d)]=true; d=addDays(d,1); }
+  });
+  const pagSet = new Set(pags.filter(Boolean));
+
+  const allDays = [];
+  let cur = new Date(rangeStart);
+  while(cur <= rangeEnd) { allDays.push(new Date(cur)); cur=addDays(cur,1); }
+
+  const monthGroups = {};
+  allDays.forEach(d => {
+    const k=`${d.getFullYear()}-${d.getMonth()}`;
+    if(!monthGroups[k]) monthGroups[k]={label:d.toLocaleString('pt-BR',{month:'short',year:'numeric'}),days:[]};
+    monthGroups[k].days.push(d);
+  });
+
+  const table = document.getElementById('cal-table');
+  table.innerHTML = '';
+  const thead = table.createTHead();
+
+  const monRow = thead.insertRow();
+  const th0 = document.createElement('th'); th0.style.minWidth='145px'; monRow.appendChild(th0);
+  Object.values(monthGroups).forEach(mg => {
+    const th=document.createElement('th');
+    th.className='cal-month-th'; th.colSpan=mg.days.length;
+    th.textContent=mg.label; monRow.appendChild(th);
+  });
+
+  const dayRow = thead.insertRow();
+  const th0b=document.createElement('th'); dayRow.appendChild(th0b);
+  allDays.forEach(d => {
+    const th=document.createElement('th');
+    th.className='cal-th'+(isoDate(d)===isoDate(today)?' today-col':'');
+    th.textContent=d.getDate(); dayRow.appendChild(th);
+  });
+
+  const rowDefs = [
+    {label:'Ambientação (5 du)', key:'amb'},
+    {label:`Projeto (${p.dias} du)`, key:'proj'},
+    {label:'Aguardando cliente', key:'espera'},
+    {label:'Pagamento', key:'pag'},
+  ];
+
+  const tbody = table.createTBody();
+  rowDefs.forEach(row => {
+    const tr = tbody.insertRow();
+    const td0 = document.createElement('td');
+    td0.className='cal-label'; td0.textContent=row.label; tr.appendChild(td0);
+    allDays.forEach(d => {
+      const td=document.createElement('td');
+      td.className='cal-cell';
+      const iso=isoDate(d);
+      if(isWeekend(d)) td.classList.add('weekend');
+      if(iso===isoDate(today)) td.classList.add('today-line');
+      if(row.key==='amb') {
+        if(iso===isoDate(kick)) td.classList.add('fase-kick');
+        else if(d>kick && d<=ambEnd && !isWeekend(d)) td.classList.add('fase-amb');
+      }
+      if(row.key==='proj') {
+        if(iso===isoDate(projEnd)) td.classList.add('fase-fim');
+        else if(d>ambEnd && d<=projEnd && !isWeekend(d) && !espSet[iso]) td.classList.add('fase-proj');
+      }
+      if(row.key==='espera' && espSet[iso]) td.classList.add('fase-espera');
+      if(row.key==='pag' && pagSet.has(iso)) td.classList.add('fase-pag');
+
+      const span=document.createElement('span');
+      span.className='day-num'; span.textContent=d.getDate();
+      td.appendChild(span); tr.appendChild(td);
+    });
+  });
+
+  const totalEspera = Object.keys(espSet).length;
+  document.getElementById('cal-summary').textContent =
+    `5 dias de ambientação · ${p.dias} dias úteis de projeto · ${totalEspera} dia(s) aguardando cliente · Entrega prevista: ${formatDate(projEnd)}`;
+}
+
+function openModal(id) {
+  editingId = id||null;
+  document.getElementById('modal-title').textContent = id ? 'Editar Projeto' : 'Novo Projeto';
+  document.getElementById('espera-list').innerHTML = '';
+  if(id) {
+    const p=projects.find(x=>x.id===id);
+    document.getElementById('f-name').value=p.name;
+    document.getElementById('f-kickoff').value=p.kickoff;
+    document.getElementById('f-dias').value=p.dias;
+    const pags=p.pags||[];
+    ['f-pag1','f-pag2','f-pag3'].forEach((fid,i)=>document.getElementById(fid).value=pags[i]||'');
+    (p.esperas||[]).forEach(e=>addEsperaRow(e.from,e.to));
+  } else {
+    ['f-name','f-kickoff','f-dias','f-pag1','f-pag2','f-pag3'].forEach(fid=>document.getElementById(fid).value='');
+  }
+  document.getElementById('modal-overlay').style.display='flex';
+}
+
+function closeModal() { document.getElementById('modal-overlay').style.display='none'; editingId=null; }
+function closeModalOutside(e) { if(e.target===document.getElementById('modal-overlay')) closeModal(); }
+
+function addEsperaRow(from, to) {
+  const list=document.getElementById('espera-list');
+  const div=document.createElement('div');
+  div.className='espera-item';
+  div.innerHTML=`<input class="form-input" type="date" value="${from||''}" style="flex:1">
+    <span style="font-size:12px;color:var(--text-secondary)">até</span>
+    <input class="form-input" type="date" value="${to||''}" style="flex:1">
+    <button class="btn btn-sm btn-danger" onclick="this.parentElement.remove()">×</button>`;
+  list.appendChild(div);
+}
+
+function saveProject() {
+  const name=document.getElementById('f-name').value.trim();
+  const kickoff=document.getElementById('f-kickoff').value;
+  const dias=parseInt(document.getElementById('f-dias').value);
+  if(!name||!kickoff||isNaN(dias)||dias<1){ alert('Preencha nome, data do kick-off e dias de projeto.'); return; }
+  const pags=['f-pag1','f-pag2','f-pag3'].map(fid=>document.getElementById(fid).value).filter(Boolean);
+  const esperas=[];
+  document.querySelectorAll('#espera-list .espera-item').forEach(row=>{
+    const inputs=row.querySelectorAll('input');
+    if(inputs[0].value&&inputs[1].value) esperas.push({from:inputs[0].value,to:inputs[1].value});
+  });
+  if(editingId) {
+    const idx=projects.findIndex(x=>x.id===editingId);
+    projects[idx]={...projects[idx],name,kickoff,dias,pags,esperas};
+  } else {
+    const newProj={id:Date.now().toString(),name,kickoff,dias,pags,esperas};
+    projects.push(newProj);
+    activeId=newProj.id;
+  }
+  save(); closeModal(); render();
+}
+
+function editProject(id,e) { e.stopPropagation(); openModal(id); }
+function deleteProject(id,e) {
+  e.stopPropagation();
+  if(!confirm('Excluir este projeto permanentemente?')) return;
+  projects=projects.filter(x=>x.id!==id);
+  if(activeId===id) activeId=null;
+  save(); render();
+}
+
+load();
+</script>
+</body>
+</html>
