@@ -276,19 +276,43 @@
   </div>
 </div>
 
-<script>
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getFirestore, collection, onSnapshot, doc, setDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyAksfn5o8FkE4nFdDM2MWLaGVlqDjeXZGs",
+  authDomain: "tracker-projetos.firebaseapp.com",
+  projectId: "tracker-projetos",
+  storageBucket: "tracker-projetos.firebasestorage.app",
+  messagingSenderId: "371141629284",
+  appId: "1:371141629284:web:031d83d8aac607c0ef1671"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+const colRef = collection(db, 'projetos');
+
+// Escuta mudancas em tempo real
+onSnapshot(colRef, (snapshot) => {
+  projects = snapshot.docs.map(d => ({id: d.id, ...d.data()}));
+  render();
+});
+
+async function saveToFirebase(p) {
+  await setDoc(doc(db, 'projetos', p.id), p);
+}
+async function deleteFromFirebase(id) {
+  await deleteDoc(doc(db, 'projetos', id));
+}
+
 const STORAGE_KEY = 'insper_jr_tracker_v1';
 let projects = [];
 let editingId = null;
 let activeId = null;
 
-function load() {
-  try { projects = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); } catch(e) { projects = []; }
-  render();
-}
-function save() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(projects));
-}
+function load() {} // carregamento via onSnapshot acima
+function save() {} // salvo via saveToFirebase
 
 function parseDate(s) { const [y,m,d]=s.split('-'); return new Date(+y,+m-1,+d); }
 function isoDate(d) { return d.toISOString().slice(0,10); }
@@ -516,22 +540,25 @@ function saveProject() {
   });
   if(editingId) {
     const idx=projects.findIndex(x=>x.id===editingId);
-    projects[idx]={...projects[idx],name,kickoff,dias,tep,pags,esperas};
+    const updated = {...projects[idx],name,kickoff,dias,tep,pags,esperas};
+    projects[idx]=updated;
+    saveToFirebase(updated);
   } else {
     const newProj={id:Date.now().toString(),name,kickoff,dias,tep,pags,esperas};
     projects.push(newProj);
     activeId=newProj.id;
+    saveToFirebase(newProj);
   }
-  save(); closeModal(); render();
+  closeModal(); render();
 }
 
 function editProject(id,e) { e.stopPropagation(); openModal(id); }
 function deleteProject(id,e) {
   e.stopPropagation();
   if(!confirm('Excluir este projeto permanentemente?')) return;
-  projects=projects.filter(x=>x.id!==id);
+  deleteFromFirebase(id);
   if(activeId===id) activeId=null;
-  save(); render();
+  render();
 }
 
 function exportData() {
@@ -568,7 +595,8 @@ function handleImport(e) {
       if(!confirm(msg)) return;
       projects = [...projects, ...novos];
       activeId = novos[novos.length-1].id;
-      save(); render();
+      novos.forEach(p => saveToFirebase(p));
+      render();
     } catch(err) {
       alert('Erro ao ler o arquivo. Certifique-se de que e um JSON exportado por este tracker.');
     }
@@ -576,7 +604,8 @@ function handleImport(e) {
   reader.readAsText(file);
 }
 
-load();
+// inicializa (onSnapshot cuida do carregamento)
+render();
 </script>
 </body>
 </html>
