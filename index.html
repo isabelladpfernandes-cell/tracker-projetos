@@ -93,7 +93,15 @@
   .badge { font-size: 11px; padding: 3px 9px; border-radius: 20px; font-weight: 500; white-space: nowrap; }
   .badge-green { background: #EAF3DE; color: #3B6D11; }
   .badge-blue { background: #E6F1FB; color: #185FA5; }
+  .badge-amber { background: #FAEEDA; color: #854F0B; }
+  .badge-red { background: #FCEBEB; color: #A32D2D; }
   .badge-gray { background: var(--bg-secondary); color: var(--text-secondary); border: 1px solid var(--border); }
+
+  .alert-atrasado {
+    font-size: 12px; color: #791F1F; background: #FCEBEB;
+    border: 1px solid #F09595; border-radius: var(--radius-md);
+    padding: 7px 12px; margin-bottom: 10px;
+  }
 
   .empty-state {
     text-align: center; padding: 3rem 1rem;
@@ -141,6 +149,9 @@
   .cal-cell.fase-pag { background: #F4C0D1; }
   .cal-cell.fase-kick { background: #3B6D11; border-radius: 50%; margin: 2px; width: 24px; height: 24px; }
   .cal-cell.fase-fim { background: #A32D2D; border-radius: 50%; margin: 2px; width: 24px; height: 24px; }
+  .cal-cell.fase-tep { background: #534AB7; border-radius: 50%; margin: 2px; width: 24px; height: 24px; }
+  .cal-cell.fase-tep .day-num { color: #fff; }
+  .cal-cell.fase-ajustes { background: #CECBF6; }
   .cal-cell.today-line { box-shadow: inset 2px 0 0 #E24B4A; }
   .day-num { font-size: 10px; color: var(--text-secondary); }
   .cal-cell.fase-kick .day-num, .cal-cell.fase-fim .day-num { color: #fff; }
@@ -204,6 +215,8 @@
     <div class="leg-item"><div class="leg-box" style="background:#FAC775;border:1px solid #EF9F27"></div> Aguardando cliente</div>
     <div class="leg-item"><div class="leg-box" style="background:#F4C0D1;border:1px solid #ED93B1"></div> Pagamento</div>
     <div class="leg-item"><div class="leg-box" style="background:#A32D2D;border-radius:50%"></div> Entrega prevista</div>
+    <div class="leg-item"><div class="leg-box" style="background:#534AB7;border-radius:50%"></div> Assinatura TEP</div>
+    <div class="leg-item"><div class="leg-box" style="background:#CECBF6;border:1px solid #AFA9EC"></div> Período de ajustes (20 du)</div>
   </div>
 
   <div id="project-list" class="project-list"></div>
@@ -239,6 +252,11 @@
         <label class="form-label">Dias úteis de projeto</label>
         <input class="form-input" type="number" id="f-dias" min="1" max="180" placeholder="Ex: 30">
       </div>
+    </div>
+    <div class="form-row">
+      <label class="form-label">Data de assinatura do TEP (opcional — preencha quando o cliente assinar)</label>
+      <input class="form-input" type="date" id="f-tep">
+      <p style="font-size:11px;color:var(--text-secondary);margin-top:4px">Após o TEP, o sistema calcula automaticamente os 20 dias úteis de ajustes.</p>
     </div>
     <div class="form-row">
       <label class="form-label">Datas de pagamento (até 3)</label>
@@ -285,7 +303,8 @@ function addBusinessDays(start, n) {
 
 function buildProjectDates(p) {
   const kick = parseDate(p.kickoff);
-  const ambEnd = addBusinessDays(kick, 5);
+  // kick-off já é o 1º dia de ambientação, então ambEnd = kick + 4 du adicionais
+  const ambEnd = addBusinessDays(kick, 4);
   let projEnd = addBusinessDays(ambEnd, p.dias);
   const esperas = (p.esperas||[]).filter(e=>e.from&&e.to);
   for(const e of esperas) {
@@ -293,14 +312,20 @@ function buildProjectDates(p) {
     while(d<=et){ if(!isWeekend(d)) days++; d=addDays(d,1); }
     projEnd = addBusinessDays(projEnd, days);
   }
-  return { kick, ambEnd, projEnd, esperas, pags:(p.pags||[]).filter(Boolean) };
+  const tep = p.tep ? parseDate(p.tep) : null;
+  const ajustesEnd = tep ? addBusinessDays(tep, 20) : null;
+  return { kick, ambEnd, projEnd, tep, ajustesEnd, esperas, pags:(p.pags||[]).filter(Boolean) };
 }
 
 function getStatus(p) {
-  const {kick, projEnd} = buildProjectDates(p);
+  const {kick, projEnd, tep, ajustesEnd} = buildProjectDates(p);
   const today = new Date(); today.setHours(0,0,0,0);
   if(today < kick) return {label:'aguardando início', cls:'badge-gray'};
-  if(today > projEnd) return {label:'finalizado', cls:'badge-green'};
+  if(today > projEnd && !tep) return {label:'atrasado — sem TEP', cls:'badge-red'};
+  if(tep && today > projEnd && today <= ajustesEnd) return {label:'período de ajustes', cls:'badge-amber'};
+  if(tep && today > ajustesEnd) return {label:'encerrado', cls:'badge-green'};
+  if(today > projEnd && tep && today <= ajustesEnd) return {label:'período de ajustes', cls:'badge-amber'};
+  if(today > projEnd) return {label:'atrasado', cls:'badge-red'};
   return {label:'em andamento', cls:'badge-blue'};
 }
 
@@ -312,15 +337,21 @@ function render() {
   if(!projects.length) { empty.style.display='block'; calSec.style.display='none'; return; }
   empty.style.display='none';
   projects.forEach(p => {
-    const {projEnd} = buildProjectDates(p);
+    const {projEnd, tep, ajustesEnd} = buildProjectDates(p);
     const st = getStatus(p);
+    const today = new Date(); today.setHours(0,0,0,0);
+    const atrasado = today > projEnd && !tep;
+    const diasAtraso = atrasado ? Math.round((today - projEnd)/(1000*60*60*24)) : 0;
+    const tepInfo = tep ? ` &nbsp;·&nbsp; TEP: ${formatDate(parseDate(p.tep))} &nbsp;·&nbsp; Ajustes até: ${formatDate(ajustesEnd)}` : '';
+    const alertHtml = atrasado ? `<div class="alert-atrasado">&#9888; Projeto atrasado há ${diasAtraso} dia(s) corrido(s). Registre o TEP assim que o cliente assinar.</div>` : '';
     const div = document.createElement('div');
     div.className='project-card'+(activeId===p.id?' active':'');
     div.innerHTML=`
+      ${alertHtml}
       <div class="proj-header">
         <div>
           <div class="proj-name">${escHtml(p.name)}</div>
-          <div class="proj-meta">Kick-off: ${formatDate(parseDate(p.kickoff))} &nbsp;·&nbsp; Entrega prevista: ${formatDate(projEnd)}</div>
+          <div class="proj-meta">Kick-off: ${formatDate(parseDate(p.kickoff))} &nbsp;·&nbsp; Entrega prevista: ${formatDate(projEnd)}${tepInfo}</div>
         </div>
         <div class="proj-right">
           <span class="badge ${st.cls}">${st.label}</span>
@@ -341,13 +372,17 @@ function showCalendar(id) {
   activeId = id;
   document.querySelectorAll('.project-card').forEach(el => el.classList.toggle('active', el.querySelector('.btn')?.getAttribute('onclick')?.includes(id)));
   const p = projects.find(x=>x.id===id); if(!p) return;
-  const {kick, ambEnd, projEnd, esperas, pags} = buildProjectDates(p);
+  const {kick, ambEnd, projEnd, tep, ajustesEnd, esperas, pags} = buildProjectDates(p);
   document.getElementById('cal-proj-name').textContent = p.name;
   document.getElementById('calendar-section').style.display = 'block';
 
   const today = new Date(); today.setHours(0,0,0,0);
+  const rangeEnd = ajustesEnd
+    ? new Date(Math.max(projEnd, ajustesEnd).valueOf() > new Date(projEnd.getFullYear(), projEnd.getMonth()+1, 0).valueOf()
+        ? new Date(ajustesEnd.getFullYear(), ajustesEnd.getMonth()+1, 0)
+        : new Date(projEnd.getFullYear(), projEnd.getMonth()+1, 0))
+    : new Date(projEnd.getFullYear(), projEnd.getMonth()+1, 0);
   const rangeStart = new Date(kick.getFullYear(), kick.getMonth(), 1);
-  const rangeEnd = new Date(projEnd.getFullYear(), projEnd.getMonth()+1, 0);
 
   const espSet = {};
   esperas.forEach(e => {
@@ -372,7 +407,7 @@ function showCalendar(id) {
   const thead = table.createTHead();
 
   const monRow = thead.insertRow();
-  const th0 = document.createElement('th'); th0.style.minWidth='145px'; monRow.appendChild(th0);
+  const th0 = document.createElement('th'); th0.style.minWidth='165px'; monRow.appendChild(th0);
   Object.values(monthGroups).forEach(mg => {
     const th=document.createElement('th');
     th.className='cal-month-th'; th.colSpan=mg.days.length;
@@ -392,6 +427,7 @@ function showCalendar(id) {
     {label:`Projeto (${p.dias} du)`, key:'proj'},
     {label:'Aguardando cliente', key:'espera'},
     {label:'Pagamento', key:'pag'},
+    {label:'TEP + ajustes (20 du)', key:'ajustes'},
   ];
 
   const tbody = table.createTBody();
@@ -405,6 +441,7 @@ function showCalendar(id) {
       const iso=isoDate(d);
       if(isWeekend(d)) td.classList.add('weekend');
       if(iso===isoDate(today)) td.classList.add('today-line');
+
       if(row.key==='amb') {
         if(iso===isoDate(kick)) td.classList.add('fase-kick');
         else if(d>kick && d<=ambEnd && !isWeekend(d)) td.classList.add('fase-amb');
@@ -415,6 +452,10 @@ function showCalendar(id) {
       }
       if(row.key==='espera' && espSet[iso]) td.classList.add('fase-espera');
       if(row.key==='pag' && pagSet.has(iso)) td.classList.add('fase-pag');
+      if(row.key==='ajustes' && tep) {
+        if(iso===isoDate(tep)) td.classList.add('fase-tep');
+        else if(d>tep && ajustesEnd && d<=ajustesEnd && !isWeekend(d)) td.classList.add('fase-ajustes');
+      }
 
       const span=document.createElement('span');
       span.className='day-num'; span.textContent=d.getDate();
@@ -423,8 +464,9 @@ function showCalendar(id) {
   });
 
   const totalEspera = Object.keys(espSet).length;
-  document.getElementById('cal-summary').textContent =
-    `5 dias de ambientação · ${p.dias} dias úteis de projeto · ${totalEspera} dia(s) aguardando cliente · Entrega prevista: ${formatDate(projEnd)}`;
+  let summary = `5 du ambientação (kick-off incluso) · ${p.dias} du de projeto · ${totalEspera} dia(s) aguardando cliente · Entrega prevista: ${formatDate(projEnd)}`;
+  if(tep) summary += ` · TEP: ${formatDate(tep)} · Ajustes até: ${formatDate(ajustesEnd)}`;
+  document.getElementById('cal-summary').textContent = summary;
 }
 
 function openModal(id) {
@@ -436,11 +478,12 @@ function openModal(id) {
     document.getElementById('f-name').value=p.name;
     document.getElementById('f-kickoff').value=p.kickoff;
     document.getElementById('f-dias').value=p.dias;
+    document.getElementById('f-tep').value=p.tep||'';
     const pags=p.pags||[];
     ['f-pag1','f-pag2','f-pag3'].forEach((fid,i)=>document.getElementById(fid).value=pags[i]||'');
     (p.esperas||[]).forEach(e=>addEsperaRow(e.from,e.to));
   } else {
-    ['f-name','f-kickoff','f-dias','f-pag1','f-pag2','f-pag3'].forEach(fid=>document.getElementById(fid).value='');
+    ['f-name','f-kickoff','f-dias','f-tep','f-pag1','f-pag2','f-pag3'].forEach(fid=>document.getElementById(fid).value='');
   }
   document.getElementById('modal-overlay').style.display='flex';
 }
@@ -464,6 +507,7 @@ function saveProject() {
   const kickoff=document.getElementById('f-kickoff').value;
   const dias=parseInt(document.getElementById('f-dias').value);
   if(!name||!kickoff||isNaN(dias)||dias<1){ alert('Preencha nome, data do kick-off e dias de projeto.'); return; }
+  const tep = document.getElementById('f-tep').value || null;
   const pags=['f-pag1','f-pag2','f-pag3'].map(fid=>document.getElementById(fid).value).filter(Boolean);
   const esperas=[];
   document.querySelectorAll('#espera-list .espera-item').forEach(row=>{
@@ -472,9 +516,9 @@ function saveProject() {
   });
   if(editingId) {
     const idx=projects.findIndex(x=>x.id===editingId);
-    projects[idx]={...projects[idx],name,kickoff,dias,pags,esperas};
+    projects[idx]={...projects[idx],name,kickoff,dias,tep,pags,esperas};
   } else {
-    const newProj={id:Date.now().toString(),name,kickoff,dias,pags,esperas};
+    const newProj={id:Date.now().toString(),name,kickoff,dias,tep,pags,esperas};
     projects.push(newProj);
     activeId=newProj.id;
   }
